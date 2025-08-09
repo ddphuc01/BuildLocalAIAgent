@@ -28,7 +28,11 @@ def analyze_manifest(manifest_yaml: str) -> List[Dict[str, Any]]:
 
         # Check image tags not 'latest'
         template = spec.get("template", {}) if "template" in spec else doc.get("template", {})
-        pod_spec = template.get("spec", {}) if template else spec.get("spec", {})
+        # Controllers (Deployment/SS/DS) use spec.template.spec; Pods use spec directly
+        if template:
+            pod_spec = template.get("spec", {}) or {}
+        else:
+            pod_spec = spec or {}
         containers = _ensure_list(pod_spec.get("containers"))
         for c in containers:
             image = c.get("image", "")
