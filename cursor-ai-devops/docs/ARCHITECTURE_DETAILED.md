@@ -149,4 +149,121 @@ sequenceDiagram
 #### Lộ trình phát triển
 - Streaming WS cho chat/suggest; tích hợp đầy đủ LSP; CI/CD templates (GA/Jenkins/GitLab/ArgoCD); policy scan (tfsec/kube-linter/trivy/OPA); packaging Electron.
 
+---
+
+### CI/CD pipelines và gates bảo mật
+
+#### Mô hình pipeline nhiều giai đoạn
+- Build → Test → Security Scan → Package → Deploy (Dev → Staging → Prod) với approval gates.
+- Tích hợp SAST/DAST, dependency scan, container image scan (trivy), IaC/K8s scan (tfsec/kube-linter/OPA).
+
+```mermaid
+flowchart LR
+  A[Push/PR] --> B[Build]
+  B --> C[Test Unit/Integration]
+  C --> D[Security Scans\nSAST/DAST/Deps]
+  D --> E[Container Scan\nTrivy]
+  E --> F[IaC/K8s Policy\ntfsec/kube-linter/OPA]
+  F --> G[Package Artifact]
+  G --> H[Deploy Dev]
+  H --> I[Promote Staging\n+Approval]
+  I --> J[Promote Prod\n+Approval]
+```
+
+#### Một số job/gate điển hình
+- SAST: semgrep/codeql
+- Dependency scan: npm audit / pip-audit / osv-scanner
+- Container scan: trivy image
+- IaC scan: tfsec (Terraform), checkov (tuỳ chọn)
+- K8s scan: kube-linter, conftest/OPA cho policy
+
+---
+
+### One-click Deployment workflow
+
+```mermaid
+sequenceDiagram
+  participant UI as UI (Command Palette)
+  participant API as FastAPI /api/deploy (tương lai)
+  participant ORC as Orchestrator
+  participant CI as CI/CD Provider
+  participant REG as Container Registry
+  participant CD as CD Tool (ArgoCD/kubectl)
+  participant K8S as Kubernetes
+
+  UI->>API: Deploy service S (env=staging)
+  API->>ORC: plan_deploy(S, staging)
+  ORC->>CI: trigger build+test (commit/tag)
+  CI-->>REG: push image (sha/tag)
+  CI-->>ORC: status + artifact refs
+  ORC->>CD: apply Helm/manifest (image sha)
+  CD->>K8S: rollout
+  K8S-->>CD: status events
+  CD-->>ORC: success/failure + details
+  ORC-->>API: response
+  API-->>UI: deploy result + links/logs
+```
+
+Ghi chú:
+- Có thể thêm canary/blue-green và auto-rollback khi liveness/readiness fail hoặc SLO xấu.
+
+---
+
+### Drift Detection workflow (IaC)
+
+```mermaid
+sequenceDiagram
+  participant SCH as Scheduler (cron)
+  participant API as FastAPI /api/drift/check (tương lai)
+  participant ORC as Orchestrator
+  participant TF as Terraform State
+  participant CSP as Cloud APIs
+
+  SCH->>API: trigger drift check
+  API->>ORC: compare desired vs actual
+  ORC->>TF: load desired state (plan)
+  ORC->>CSP: fetch live resources
+  ORC-->>API: drift report (added/changed/removed)
+  API-->>SCH: result
+```
+
+T tuỳ chọn: tự động reconcile với approval trước khi apply.
+
+---
+
+### Runbook generation & execution
+
+```mermaid
+sequenceDiagram
+  participant UI as UI (Runbook)
+  participant API as FastAPI /api/runbook (tương lai)
+  participant ORC as Orchestrator
+  participant RAG as RAG
+  participant RT as Model Router
+  participant OPS as Ops Integrations (K8s/Docker/Cloud)
+
+  UI->>API: generate runbook for incident X
+  API->>ORC: build context (logs/events/metrics)
+  ORC->>RAG: retrieve KB snippets
+  ORC->>RT: draft runbook
+  RT-->>ORC: steps/checklists
+  ORC-->>API: runbook doc
+  API-->>UI: view/execute steps
+  UI->>API: execute step N
+  API->>OPS: perform action (e.g., scale, restart)
+  OPS-->>API: result
+  API-->>UI: status update
+```
+
+---
+
+### Tuân thủ & dữ liệu
+- Compliance: SOC2/PCI-DSS/GDPR – bật audit logging, retention, RBAC chặt chẽ, mã hoá in-transit/at-rest.
+- Data retention: cấu hình thời gian lưu hội thoại và logs; hỗ trợ export/anonymize.
+
+### Chi phí & tối ưu hiệu năng
+- Ưu tiên Ollama offline khi phù hợp để giảm chi phí API.
+- Cache ngữ cảnh dự án, index RAG theo incremental.
+- Giới hạn token/temperature theo loại tác vụ DevOps.
+
 
