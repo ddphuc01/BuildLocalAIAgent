@@ -1,0 +1,30 @@
+# Traefik dynamic configuration for Flowise
+http:
+  routers:
+    flowise-router:
+      rule: "Host(`localhost`) && PathPrefix(`/flowise`)"
+      service: flowise-service
+      entryPoints:
+        - web
+      middlewares:
+        - flowise-strip
+    # For production with custom domain
+    # flowise-domain:
+    #   rule: "Host(`agents.yourdomain.com`)"
+    #   service: flowise-service
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: letsencrypt
+  
+  services:
+    flowise-service:
+      loadBalancer:
+        servers:
+          - url: "http://flowise:3000"
+  
+  middlewares:
+    flowise-strip:
+      stripPrefix:
+        prefixes:
+          - "/flowise"

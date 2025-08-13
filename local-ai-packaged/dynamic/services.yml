@@ -1,0 +1,92 @@
+# Traefik dynamic configuration for all other services
+http:
+  routers:
+    # Neo4j Browser
+    neo4j-router:
+      rule: "Host(`localhost`) && PathPrefix(`/neo4j`)"
+      service: neo4j-service
+      entryPoints:
+        - web
+      middlewares:
+        - neo4j-strip
+    
+    # Langfuse
+    langfuse-router:
+      rule: "Host(`localhost`) && PathPrefix(`/langfuse`)"
+      service: langfuse-service
+      entryPoints:
+        - web
+      middlewares:
+        - langfuse-strip
+    
+    # SearXNG
+    searxng-router:
+      rule: "Host(`localhost`) && PathPrefix(`/search`)"
+      service: searxng-service
+      entryPoints:
+        - web
+      middlewares:
+        - searxng-strip
+    
+    # Supabase Studio
+    supabase-router:
+      rule: "Host(`localhost`) && PathPrefix(`/supabase`)"
+      service: supabase-service
+      entryPoints:
+        - web
+      middlewares:
+        - supabase-strip
+    
+    # Default route to Open WebUI
+    default-router:
+      rule: "Host(`localhost`)"
+      service: open-webui-service
+      entryPoints:
+        - web
+  
+  services:
+    neo4j-service:
+      loadBalancer:
+        servers:
+          - url: "http://neo4j:7474"
+    
+    langfuse-service:
+      loadBalancer:
+        servers:
+          - url: "http://langfuse:3000"
+    
+    searxng-service:
+      loadBalancer:
+        servers:
+          - url: "http://searxng:8080"
+    
+    supabase-service:
+      loadBalancer:
+        servers:
+          - url: "http://supabase:54323"
+    
+    open-webui-service:
+      loadBalancer:
+        servers:
+          - url: "http://open-webui:8080"
+  
+  middlewares:
+    neo4j-strip:
+      stripPrefix:
+        prefixes:
+          - "/neo4j"
+    
+    langfuse-strip:
+      stripPrefix:
+        prefixes:
+          - "/langfuse"
+    
+    searxng-strip:
+      stripPrefix:
+        prefixes:
+          - "/search"
+    
+    supabase-strip:
+      stripPrefix:
+        prefixes:
+          - "/supabase"

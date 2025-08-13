@@ -1,0 +1,246 @@
+version: '3.8'
+
+services:
+  # Traefik reverse proxy (replaces Caddy)
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      # Uncomment for production HTTPS
+      # - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-your-email@domain.com}"
+      # - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme.json"
+      # - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      # - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./dynamic:/etc/traefik/dynamic:ro"
+      # - "./acme.json:/etc/traefik/acme.json"  # For HTTPS certificates
+    networks:
+      - ai-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`localhost`) && PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+
+  # Ollama for local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_ORIGINS=*
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # Open WebUI for chat interface
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-your-secret-key-here}
+    volumes:
+      - open_webui_data:/app/backend/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.open-webui.rule=Host(`localhost`) && PathPrefix(`/webui`)"
+      - "traefik.http.routers.open-webui.entrypoints=web"
+      - "traefik.http.services.open-webui.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.open-webui-strip.stripprefix.prefixes=/webui"
+      - "traefik.http.routers.open-webui.middlewares=open-webui-strip"
+
+  # n8n for workflow automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-password}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-your-encryption-key}
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_USER_MANAGEMENT_JWT_SECRET:-your-jwt-secret}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - supabase
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`localhost`) && PathPrefix(`/n8n`)"
+      - "traefik.http.routers.n8n.entrypoints=web"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      - "traefik.http.middlewares.n8n-strip.stripprefix.prefixes=/n8n"
+      - "traefik.http.routers.n8n.middlewares=n8n-strip"
+
+  # Flowise for AI agent building
+  flowise:
+    image: flowiseai/flowise:latest
+    container_name: flowise
+    environment:
+      - PORT=3000
+      - FLOWISE_USERNAME=${FLOWISE_USERNAME:-admin}
+      - FLOWISE_PASSWORD=${FLOWISE_PASSWORD:-password}
+      - SECRETKEY=${FLOWISE_SECRET_KEY:-your-secret-key}
+    volumes:
+      - flowise_data:/root/.flowise
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flowise.rule=Host(`localhost`) && PathPrefix(`/flowise`)"
+      - "traefik.http.routers.flowise.entrypoints=web"
+      - "traefik.http.services.flowise.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.flowise-strip.stripprefix.prefixes=/flowise"
+      - "traefik.http.routers.flowise.middlewares=flowise-strip"
+
+  # Supabase for database and auth
+  supabase:
+    image: supabase/supabase:latest
+    container_name: supabase
+    ports:
+      - "5432:5432"
+      - "54321:54321"
+      - "54323:54323"
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your-postgres-password}
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret}
+      - ANON_KEY=${ANON_KEY:-your-anon-key}
+      - SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-your-service-role-key}
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-admin}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-password}
+      - POOLER_TENANT_ID=${POOLER_TENANT_ID:-your-pooler-tenant-id}
+      - POOLER_DB_POOL_SIZE=${POOLER_DB_POOL_SIZE:-5}
+    volumes:
+      - supabase_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.supabase.rule=Host(`localhost`) && PathPrefix(`/supabase`)"
+      - "traefik.http.routers.supabase.entrypoints=web"
+      - "traefik.http.services.supabase.loadbalancer.server.port=54323"
+      - "traefik.http.middlewares.supabase-strip.stripprefix.prefixes=/supabase"
+      - "traefik.http.routers.supabase.middlewares=supabase-strip"
+
+  # Neo4j for knowledge graphs
+  neo4j:
+    image: neo4j:5.15
+    container_name: neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=${NEO4J_AUTH:-neo4j/password}
+      - NEO4J_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_dbms_security_procedures_unrestricted=gds.*,apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.neo4j.rule=Host(`localhost`) && PathPrefix(`/neo4j`)"
+      - "traefik.http.routers.neo4j.entrypoints=web"
+      - "traefik.http.services.neo4j.loadbalancer.server.port=7474"
+      - "traefik.http.middlewares.neo4j-strip.stripprefix.prefixes=/neo4j"
+      - "traefik.http.routers.neo4j.middlewares=neo4j-strip"
+
+  # Qdrant for vector storage
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - ai-network
+
+  # SearXNG for private search
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    environment:
+      - BASE_URL=http://localhost:8080/
+    volumes:
+      - searxng_data:/etc/searxng
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`localhost`) && PathPrefix(`/search`)"
+      - "traefik.http.routers.searxng.entrypoints=web"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.searxng-strip.stripprefix.prefixes=/search"
+      - "traefik.http.routers.searxng.middlewares=searxng-strip"
+
+  # Langfuse for LLM observability
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: langfuse
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-password}@supabase:5432/langfuse
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-your-nextauth-secret}
+      - SALT=${LANGFUSE_SALT:-your-salt}
+      - NEXTAUTH_URL=http://localhost:3030
+    depends_on:
+      - supabase
+    restart: unless-stopped
+    networks:
+      - ai-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.langfuse.rule=Host(`localhost`) && PathPrefix(`/langfuse`)"
+      - "traefik.http.routers.langfuse.entrypoints=web"
+      - "traefik.http.services.langfuse.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.langfuse-strip.stripprefix.prefixes=/langfuse"
+      - "traefik.http.routers.langfuse.middlewares=langfuse-strip"
+
+volumes:
+  ollama_data:
+  open_webui_data:
+  supabase_data:
+  n8n_data:
+  flowise_data:
+  neo4j_data:
+  neo4j_logs:
+  qdrant_data:
+  searxng_data:
+
+networks:
+  ai-network:
+    driver: bridge

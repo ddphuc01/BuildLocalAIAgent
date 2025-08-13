@@ -15,3 +15,24 @@ Thumbs.db
 # Local ops docs
 PROJECT_OPERATIONS.md
 
+# Environment files
+.env
+.env.local
+.env.production
+.env.traefik
+
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# SSL certificates
+*.pem
+*.crt
+*.key

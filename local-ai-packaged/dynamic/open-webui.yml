@@ -1,0 +1,28 @@
+# Traefik dynamic configuration for Open WebUI
+http:
+  routers:
+    open-webui-router:
+      rule: "Host(`localhost`) && PathPrefix(`/webui`)"
+      service: open-webui-service
+      entryPoints:
+        - web
+    # For production with custom domain
+    # open-webui-domain:
+    #   rule: "Host(`chat.yourdomain.com`)"
+    #   service: open-webui-service
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: letsencrypt
+  
+  services:
+    open-webui-service:
+      loadBalancer:
+        servers:
+          - url: "http://open-webui:8080"
+  
+  middlewares:
+    open-webui-strip:
+      stripPrefix:
+        prefixes:
+          - "/webui"

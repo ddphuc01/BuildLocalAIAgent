@@ -1,0 +1,30 @@
+# Traefik dynamic configuration for n8n
+http:
+  routers:
+    n8n-router:
+      rule: "Host(`localhost`) && PathPrefix(`/n8n`)"
+      service: n8n-service
+      entryPoints:
+        - web
+      middlewares:
+        - n8n-strip
+    # For production with custom domain
+    # n8n-domain:
+    #   rule: "Host(`workflows.yourdomain.com`)"
+    #   service: n8n-service
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: letsencrypt
+  
+  services:
+    n8n-service:
+      loadBalancer:
+        servers:
+          - url: "http://n8n:5678"
+  
+  middlewares:
+    n8n-strip:
+      stripPrefix:
+        prefixes:
+          - "/n8n"

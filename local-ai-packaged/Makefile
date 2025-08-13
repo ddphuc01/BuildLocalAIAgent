@@ -27,8 +27,24 @@ start-cpu:
 start-gpu:
 	@python start_services.py start --profile gpu-nvidia
 
+start-traefik:
+	@echo "Starting services with built-in Traefik..."
+	@docker-compose -f docker-compose.traefik.yml up -d
+
+start-existing-traefik:
+	@echo "Starting services with existing Traefik at phucduong.duckdns.org..."
+	@docker-compose -f docker-compose.existing-traefik.yml up -d
+
 stop:
 	@python start_services.py stop
+
+stop-traefik:
+	@echo "Stopping Traefik services..."
+	@docker-compose -f docker-compose.traefik.yml down
+
+stop-existing-traefik:
+	@echo "Stopping existing Traefik services..."
+	@docker-compose -f docker-compose.existing-traefik.yml down
 
 restart: stop start
 
