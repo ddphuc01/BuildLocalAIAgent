@@ -1,0 +1,74 @@
+# Caddy configuration for Local AI Packaged
+# This file provides reverse proxy configuration for all services
+
+# Default HTTP configuration
+:80 {
+    # Open WebUI - Main chat interface
+    handle_path /webui/* {
+        reverse_proxy open-webui:8080
+    }
+
+    # n8n - Workflow automation
+    handle_path /n8n/* {
+        reverse_proxy n8n:5678
+    }
+
+    # Flowise - AI agent builder
+    handle_path /flowise/* {
+        reverse_proxy flowise:3000
+    }
+
+    # Supabase - Database and auth
+    handle_path /supabase/* {
+        reverse_proxy supabase:54321
+    }
+
+    # Neo4j - Knowledge graph
+    handle_path /neo4j/* {
+        reverse_proxy neo4j:7474
+    }
+
+    # Langfuse - LLM observability
+    handle_path /langfuse/* {
+        reverse_proxy langfuse:3000
+    }
+
+    # SearXNG - Private search
+    handle_path /search/* {
+        reverse_proxy searxng:8080
+    }
+
+    # Default route to Open WebUI
+    handle {
+        reverse_proxy open-webui:8080
+    }
+}
+
+# HTTPS configuration (uncomment for production)
+# n8n.yourdomain.com {
+#     reverse_proxy n8n:5678
+# }
+#
+# openwebui.yourdomain.com {
+#     reverse_proxy open-webui:8080
+# }
+#
+# flowise.yourdomain.com {
+#     reverse_proxy flowise:3000
+# }
+#
+# supabase.yourdomain.com {
+#     reverse_proxy supabase:54321
+# }
+#
+# neo4j.yourdomain.com {
+#     reverse_proxy neo4j:7474
+# }
+#
+# langfuse.yourdomain.com {
+#     reverse_proxy langfuse:3000
+# }
+#
+# searxng.yourdomain.com {
+#     reverse_proxy searxng:8080
+# }
